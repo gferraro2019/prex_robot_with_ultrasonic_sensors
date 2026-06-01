@@ -207,8 +207,10 @@ class PrexWorld:
         repeating_action=1,
         initial_theta=0,
         size_robot=0.30,
+        controller_on=True,
     ):
         # env definition
+        self.controller_on = controller_on
         self.too_close = too_close
         self.last_position = self.position = None
         self.theta = initial_theta
@@ -235,7 +237,7 @@ class PrexWorld:
         l1, l2 = perimeter
         self.perimeter = perimeter
         self.size_robot = size_robot
-        self.goal = np.array([l1 / 2, l1 / 2, l2 / 2, l2 / 2])
+        self.goal = np.zeros(2) # for the x and y position of the robot world frame
         self.max_distance = max(2 * l2, 2 * l1)
         self.info = {}
         self.action = None
@@ -274,6 +276,9 @@ class PrexWorld:
         self.previous_state = np.array([0.3, 0.3, 0.3, 0.3])
         self.rotate = False
         self.moves = np.array([False, False, False, False])
+        self.last_action=np.zeros(2)
+        self.last_position=np.zeros(3)
+        self.last_theta = 0.0
 
     def _action_to_text(self, action):
         if action.shape == (1, 2):
@@ -290,7 +295,12 @@ class PrexWorld:
         self.read_robot_state()
 
         # check if it is a good action
-        self.controller(action.copy(), self.position)[0]
+        if self.controller_on:
+            original_action = action.copy()
+
+            action = self.controller(action.copy(), self.state[:4])[0]
+            action[1] = original_action[1]
+
         self.action_controlled = action  # self.controller(action, self.position)[0]
 
         # send the action
@@ -320,6 +330,7 @@ class PrexWorld:
         self.read_robot_state(action)
         self.action = action
         reward, done = self._compute_reward(self.state, self.action)
+        self.last_action = action
         self.timestep += 1
 
         return self.state, reward, self.info, done
@@ -346,20 +357,62 @@ class PrexWorld:
                 state[2] = diff
 
 
+    def find_position(self, distances, alpha):
+        d_front = distances[0]
+        d_back = distances[1]
+        d_left = distances[2]
+        d_right = distances[3]
+
+        #body frame vectors
+        front = np.array([d_front,0])
+        back = np.array([-d_back,0])
+        left = np.array([0,-d_left])
+        right = np.array([0,+d_right])
+
+        rotation_matrix = np.array([[np.cos(alpha), -np.sin(alpha)], [np.sin(alpha), np.cos(alpha)]])
+
+        # world frame vectors
+        front_world = rotation_matrix @ front
+        back_world = rotation_matrix @ back
+        left_world = rotation_matrix @ left
+        right_world = rotation_matrix @ right
+
+        
+        # x-coordinate
+        if d_left > 0.3 and d_right > 0.3:
+            x = (0 - left_world[0] + self.perimeter[0] - right_world[0]) / 2
+        elif d_left > 0.3:
+            x = 0 - left_world[0]
+        else:
+            x = self.perimeter[0] - right_world[0]
+
+        # y-coordinate
+        if d_back > 0.3 and d_front > 0.3:
+            y = (0 - back_world[1] + self.perimeter[1] - front_world[1]) / 2
+        elif d_back > 0.3:
+            y = 0 - back_world[1]
+        else:
+            y = self.perimeter[1] - front_world[1]
+
+        return np.array([x, y])
+
     def read_robot_state(self, action=None):
         rclpy.spin_once(self.node_ros2)
-        # self.node_ros2.state = [d1,d2,d3,d4,vx,vy,vz,wx,wy,wz,yaw]
-        state = np.round(self.node_ros2.state[:], 2)
+        # self.node_ros2.state = [d1,d2,d3,d4,vx,vy,vz,wx,wy,wz,x,y,z,yaw]
+        state = self.node_ros2.state[:]
         #TODO define the state and all the following variables as you think is best for the task
         self.state =
-        self.dist =
-        self.position =
-        self.linear_speed =
-        self.angular_speed =
+        self.theta = 
+        self.distances = 
+        self.linear_speed = 
+        self.angular_speed = 
+        self.position = 
+        self.dist = 
 
         return self.state
 
-    def _compute_reward(self, state: np.array, action):
+
+    def _compute_reward(self, state,action):
         done = False
         # TODO define the reward
         reward = 
@@ -381,6 +434,9 @@ class PrexWorld:
         )
 
     def reset(self):
+        self.last_action=np.zeros(2)
+        self.last_position = np.zeros(3)
+        self.last_theta = 0.0
         self.previous_state[:4] = 0.3
         self.rotate = False
         self.moves[:] = False
