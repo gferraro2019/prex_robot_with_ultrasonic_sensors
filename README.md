@@ -50,9 +50,12 @@ self.state_space = ...
 **Task:** Define `self.state_space` as a list/tuple representing the dimensions of your state representation.
 
 **Available sensor data from ROS2:**
-- `self.node_ros2.state = [d1, d2, d3, d4, vx, vy, vz, wx, wy, wz, yaw]`
+- `self.node_ros2.state = [d1,d2,d3,d4,vx,vy,vz,wx,wy,wz,x,y,z,yaw]`
   - `d1, d2, d3, d4`: Distances from 4 ultrasonic sensors (front, back, left, right)
-  - Other data: velocities and orientation
+  - `vx, vy, vz`: Robot's linear velocities
+  - `wx, wy, wz`: Robot's angular velocities
+  - `x, y, z`: Robot's position
+  - `yaw`: Robot's orientation
 
 
 **Important consideration:**
@@ -65,7 +68,7 @@ self.state_space = ...
 ```python
 #TODO define the state and all the following variables as you think is best for the task
 # Example: select components from a numpy array from ROS2 state
-# ros_state = np.array([d1, d2, d3, d4, vx, vy, vz, wx, wy, wz, yaw])
+# ros_state = np.array([d1, d2, d3, d4, vx, vy, vz, wx, wy, wz, x, y, z, yaw])
 # 
 # selected = ros_state[[6,7]]  # [vz,wx]
 
